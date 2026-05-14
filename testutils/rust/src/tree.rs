@@ -107,7 +107,7 @@ impl<'de> serde::de::Visitor<'de> for BinaryTreeVisitor {
             }))));
         }
 
-        let root = nodes[0].clone();
+        let root = nodes.first().cloned().unwrap_or_default();
         let (mut i, mut j) = (0, 1);
 
         while j < nodes.len() {
@@ -161,5 +161,11 @@ mod tests {
         let tree = BinaryTree(Some(Rc::new(RefCell::new(root))));
         let serialized = serde_json::to_string(&tree).unwrap();
         assert_eq!(serialized, "[1,2,4,null,null,3]");
+    }
+
+    #[test]
+    fn test_tree_deserialize_empty_array() {
+        let tree: BinaryTree = serde_json::from_str("[]").unwrap();
+        assert_eq!(tree, BinaryTree(None));
     }
 }
