@@ -22,7 +22,7 @@ var rustDeps = []string{
 	"serde@1.0.196",
 	"serde_json@1.0.113",
 	"anyhow@1.0.79",
-	leetgoRs + "@0.2.1",
+	leetgoRs + "@0.2.2",
 }
 
 type rust struct {
