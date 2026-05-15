@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use serde::{Deserialize, Serialize, Serializer};
 use serde::de::SeqAccess;
 use serde::ser::SerializeSeq;
+use serde::{Deserialize, Serialize, Serializer};
 
 // LeetCode use `Option<Rc<RefCell<TreeNode>>>` for tree links, but `Option<Box<TreeNode>>` should be enough.
 // https://github.com/pretzelhammer/rust-blog/blob/master/posts/learning-rust-in-2020.md#leetcode
@@ -18,14 +18,14 @@ pub struct TreeNode {
 }
 
 impl TreeNode {
-  #[inline]
-  pub fn new(val: i32) -> Self {
-    TreeNode {
-      val,
-      left: None,
-      right: None
+    #[inline]
+    pub fn new(val: i32) -> Self {
+        TreeNode {
+            val,
+            left: None,
+            right: None,
+        }
     }
-  }
 }
 
 #[macro_export]
@@ -55,8 +55,8 @@ impl From<TreeLink> for BinaryTree {
 
 impl Serialize for BinaryTree {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         let mut queue = VecDeque::new();
         let mut nodes = Vec::new();
@@ -94,17 +94,19 @@ impl<'de> serde::de::Visitor<'de> for BinaryTreeVisitor {
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: SeqAccess<'de>,
+    where
+        A: SeqAccess<'de>,
     {
         let mut nodes: Vec<TreeLink> = Vec::new();
 
         while let Some(val) = seq.next_element::<Option<i32>>()? {
-            nodes.push(val.map(|v: i32| Rc::new(RefCell::new(TreeNode {
-                val: v,
-                left: None,
-                right: None,
-            }))));
+            nodes.push(val.map(|v: i32| {
+                Rc::new(RefCell::new(TreeNode {
+                    val: v,
+                    left: None,
+                    right: None,
+                }))
+            }));
         }
 
         let root = nodes.first().cloned().unwrap_or_default();
@@ -128,8 +130,8 @@ impl<'de> serde::de::Visitor<'de> for BinaryTreeVisitor {
 
 impl<'de> Deserialize<'de> for BinaryTree {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         deserializer.deserialize_seq(BinaryTreeVisitor)
     }

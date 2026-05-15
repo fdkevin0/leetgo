@@ -4,6 +4,6 @@ pub use tree::{BinaryTree, TreeNode};
 pub use utils::*;
 
 mod list;
-mod tree;
 mod parse;
+mod tree;
 mod utils;
