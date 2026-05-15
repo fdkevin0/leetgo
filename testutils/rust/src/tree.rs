@@ -59,32 +59,60 @@ impl Serialize for BinaryTree {
         S: Serializer,
     {
         let mut queue = VecDeque::new();
-        let mut nodes = Vec::new();
+        let mut values = Vec::new();
+
         queue.push_back(self.0.clone());
         while let Some(node) = queue.pop_front() {
-            nodes.push(node.clone());
-            if let Some(ref node) = node {
-                queue.push_back(node.borrow().left.clone());
-                queue.push_back(node.borrow().right.clone());
+            match node {
+                Some(node) => {
+                    let node = node.borrow();
+                    values.push(Some(node.val));
+                    queue.push_back(node.left.clone());
+                    queue.push_back(node.right.clone());
+                }
+                None => values.push(None),
             }
-        }
-        while nodes.len() > 0 && nodes.last().unwrap().is_none() {
-            nodes.pop();
         }
 
-        let mut seq = serializer.serialize_seq(None)?;
-        for node in nodes {
-            if let Some(ref node) = node {
-                seq.serialize_element(&node.borrow().val.clone())?;
-            } else {
-                seq.serialize_element(&None::<i32>)?;
-            }
+        while matches!(values.last(), Some(None)) {
+            values.pop();
+        }
+
+        let mut seq = serializer.serialize_seq(Some(values.len()))?;
+        for value in values {
+            seq.serialize_element(&value)?;
         }
         seq.end()
     }
 }
 
 struct BinaryTreeVisitor;
+
+impl BinaryTreeVisitor {
+    fn from_level_order(nodes: &[TreeLink]) -> TreeLink {
+        let Some(root) = nodes.first().and_then(|node| node.as_ref()).cloned() else {
+            return None;
+        };
+
+        let (mut parent_index, mut child_index) = (0, 1);
+
+        while parent_index < child_index && child_index < nodes.len() {
+            if let Some(parent) = nodes[parent_index].as_ref() {
+                let mut parent = parent.borrow_mut();
+                parent.left = nodes[child_index].clone();
+                child_index += 1;
+
+                if child_index < nodes.len() {
+                    parent.right = nodes[child_index].clone();
+                    child_index += 1;
+                }
+            }
+            parent_index += 1;
+        }
+
+        Some(root)
+    }
+}
 
 impl<'de> serde::de::Visitor<'de> for BinaryTreeVisitor {
     type Value = BinaryTree;
@@ -100,31 +128,10 @@ impl<'de> serde::de::Visitor<'de> for BinaryTreeVisitor {
         let mut nodes: Vec<TreeLink> = Vec::new();
 
         while let Some(val) = seq.next_element::<Option<i32>>()? {
-            nodes.push(val.map(|v: i32| {
-                Rc::new(RefCell::new(TreeNode {
-                    val: v,
-                    left: None,
-                    right: None,
-                }))
-            }));
+            nodes.push(val.map(|v| Rc::new(RefCell::new(TreeNode::new(v)))));
         }
 
-        let root = nodes.first().cloned().unwrap_or_default();
-        let (mut i, mut j) = (0, 1);
-
-        while j < nodes.len() {
-            if let Some(ref current_node) = nodes[i] {
-                current_node.borrow_mut().left = nodes[j].clone();
-                j += 1;
-                if j < nodes.len() {
-                    current_node.borrow_mut().right = nodes[j].clone();
-                    j += 1;
-                }
-            }
-            i += 1;
-        }
-
-        Ok(BinaryTree(root))
+        Ok(BinaryTree(Self::from_level_order(&nodes)))
     }
 }
 
@@ -166,8 +173,49 @@ mod tests {
     }
 
     #[test]
+    fn test_tree_serialize_empty_tree() {
+        let serialized = serde_json::to_string(&BinaryTree(None)).unwrap();
+        assert_eq!(serialized, "[]");
+    }
+
+    #[test]
     fn test_tree_deserialize_empty_array() {
         let tree: BinaryTree = serde_json::from_str("[]").unwrap();
         assert_eq!(tree, BinaryTree(None));
+    }
+
+    #[test]
+    fn test_tree_deserialize_null_root() {
+        let tree: BinaryTree = serde_json::from_str("[null]").unwrap();
+        let serialized = serde_json::to_string(&tree).unwrap();
+        assert_eq!(serialized, "[]");
+    }
+
+    #[test]
+    fn test_tree_deserialize() {
+        let tree: BinaryTree = serde_json::from_str("[1,2,4,null,null,3]").unwrap();
+        let serialized = serde_json::to_string(&tree).unwrap();
+        assert_eq!(serialized, "[1,2,4,null,null,3]");
+    }
+
+    #[test]
+    fn test_tree_deserialize_left_skewed_tree() {
+        let tree: BinaryTree = serde_json::from_str("[1,2,null,3]").unwrap();
+        let serialized = serde_json::to_string(&tree).unwrap();
+        assert_eq!(serialized, "[1,2,null,3]");
+    }
+
+    #[test]
+    fn test_tree_deserialize_right_skewed_tree() {
+        let tree: BinaryTree = serde_json::from_str("[1,null,2,null,3]").unwrap();
+        let serialized = serde_json::to_string(&tree).unwrap();
+        assert_eq!(serialized, "[1,null,2,null,3]");
+    }
+
+    #[test]
+    fn test_tree_deserialize_negative_values() {
+        let tree: BinaryTree = serde_json::from_str("[-1,-2,3]").unwrap();
+        let serialized = serde_json::to_string(&tree).unwrap();
+        assert_eq!(serialized, "[-1,-2,3]");
     }
 }

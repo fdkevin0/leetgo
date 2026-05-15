@@ -12,8 +12,8 @@ pub struct ListNode {
 
 impl ListNode {
     #[inline]
-    fn new(val: i32) -> Self {
-        ListNode { next: None, val }
+    pub fn new(val: i32) -> Self {
+        ListNode { val, next: None }
     }
 }
 
@@ -55,7 +55,7 @@ impl Serialize for LinkedList {
     {
         let mut seq = serializer.serialize_seq(None)?;
         let mut current = &self.0;
-        while let Some(ref node) = current {
+        while let Some(node) = current {
             seq.serialize_element(&node.val)?;
             current = &node.next;
         }
@@ -79,9 +79,8 @@ impl<'de> Visitor<'de> for LinkedListVisitor {
         let mut head = None;
         let mut current = &mut head;
         while let Some(val) = seq.next_element()? {
-            let node = ListNode { val, next: None };
-            *current = Some(Box::new(node));
-            current = &mut current.as_mut().unwrap().next;
+            let node = current.insert(Box::new(ListNode::new(val)));
+            current = &mut node.next;
         }
         Ok(LinkedList(head))
     }
