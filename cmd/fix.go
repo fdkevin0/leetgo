@@ -12,7 +12,9 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/hexops/gotextdiff"
 	"github.com/hexops/gotextdiff/myers"
-	"github.com/sashabaranov/go-openai"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -111,14 +113,14 @@ func askOpenAI(cmd *cobra.Command, q *leetcode.QuestionData, code string) (strin
 	baseURI := os.Getenv("OPENAI_API_ENDPOINT")
 	model := os.Getenv("OPENAI_API_MODEL")
 	if model == "" {
-		model = openai.GPT3Dot5Turbo
+		model = string(openai.ChatModelGPT3_5Turbo)
 	}
 
-	config := openai.DefaultConfig(apiKey)
+	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
 	if baseURI != "" {
-		config.BaseURL = baseURI
+		opts = append(opts, option.WithBaseURL(baseURI))
 	}
-	client := openai.NewClientWithConfig(config)
+	client := openai.NewClient(opts...)
 	prompt := fmt.Sprintf(
 		fixPrompt,
 		q.Title,
@@ -131,17 +133,27 @@ func askOpenAI(cmd *cobra.Command, q *leetcode.QuestionData, code string) (strin
 	spin.Start()
 	defer spin.Stop()
 
+	reqOpts := []option.RequestOption{}
+	reasoningEffort := shared.ReasoningEffortNone
+	if strings.Contains(strings.ToLower(model), "deepseek") {
+		// DeepSeek uses a separate `thinking` extra body field to toggle reasoning.
+		reqOpts = append(reqOpts, option.WithJSONSet("thinking", map[string]string{"type": "disabled"}))
+		reasoningEffort = ""
+	}
+
 	ctx := context.Background()
-	resp, err := client.CreateChatCompletion(
-		ctx, openai.ChatCompletionRequest{
-			Model: model,
-			Messages: []openai.ChatCompletionMessage{
-				{Role: "system", Content: "Help solve LeetCode questions and fix the code"},
-				{Role: "user", Content: prompt},
+	resp, err := client.Chat.Completions.New(
+		ctx, openai.ChatCompletionNewParams{
+			Model: shared.ChatModel(model),
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				openai.SystemMessage("Help solve LeetCode questions and fix the code"),
+				openai.UserMessage(prompt),
 			},
-			MaxTokens:   1000,
-			Temperature: 0,
+			MaxTokens:       openai.Int(1000),
+			Temperature:     openai.Float(0),
+			ReasoningEffort: reasoningEffort,
 		},
+		reqOpts...,
 	)
 	if err != nil {
 		return "", err
