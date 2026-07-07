@@ -109,6 +109,11 @@ func askOpenAI(cmd *cobra.Command, q *leetcode.QuestionData, code string) (strin
 		return "", errors.New("missing OPENAI_API_KEY environment variable, you can find or create your API key here: https://platform.openai.com/account/api-keys")
 	}
 	baseURI := os.Getenv("OPENAI_API_ENDPOINT")
+	model := os.Getenv("OPENAI_API_MODEL")
+	if model == "" {
+		model = openai.GPT3Dot5Turbo
+	}
+
 	config := openai.DefaultConfig(apiKey)
 	if baseURI != "" {
 		config.BaseURL = baseURI
@@ -129,7 +134,7 @@ func askOpenAI(cmd *cobra.Command, q *leetcode.QuestionData, code string) (strin
 	ctx := context.Background()
 	resp, err := client.CreateChatCompletion(
 		ctx, openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
+			Model: model,
 			Messages: []openai.ChatCompletionMessage{
 				{Role: "system", Content: "Help solve LeetCode questions and fix the code"},
 				{Role: "user", Content: prompt},
